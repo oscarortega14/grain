@@ -57,6 +57,23 @@ module Grain
         definition.validate!
       end
 
+      def query
+        Query.new(self)
+      end
+
+      # Reading entry points. Each returns a query that can be narrowed further.
+      def for(**filters)
+        query.for(**filters)
+      end
+
+      def between(from, to = nil)
+        query.between(from, to)
+      end
+
+      def by(*names, **coarse)
+        query.by(*names, **coarse)
+      end
+
       # Populates the rollup from data that already exists. A new rollup is empty
       # until this runs: its triggers only see what happens next.
       def backfill(from: nil, pause: 0, &progress)

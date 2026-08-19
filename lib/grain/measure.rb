@@ -48,6 +48,16 @@ module Grain
       freeze
     end
 
+    # How the measure combines when a read asks for a coarser grain than the one
+    # stored. Counts and sums add up; an extreme collapses to the extreme of the
+    # extremes, which is why min and max are storable at all despite not being
+    # reversible.
+    COARSENING = { count: :sum, sum: :sum, min: :min, max: :max }.freeze
+
+    def coarsens_with
+      COARSENING.fetch(aggregate)
+    end
+
     # A bare count of fact rows, needing no expression to evaluate per row.
     def counts_rows?
       aggregate == :count && expression.nil?
