@@ -1,0 +1,40 @@
+# frozen_string_literal: true
+
+class <%= rollup_class_name %> < Grain::Rollup
+  # The table the measures are read from and whose rows are counted. `where`
+  # narrows it, and may reach through a belongs_to.
+  #
+  #   fact LineItem, where: { order: { state: "paid" } }
+  fact :TODO
+
+  # The column the rollup is partitioned by. Required: starting the key with the
+  # most selective column is what keeps reads and recomputes cheap.
+  #
+  #   tenant :store_id, via: { order: :store_id }
+  tenant :TODO, via: :TODO
+
+  # Optional. Without it the rollup is a running total per dimension — a counter
+  # cache that can be verified instead of drifting.
+  #
+  #   time :ordered_on, via: { order: :placed_at }, grain: :day
+
+  # Dimensions are resolved by following belongs_to associations upward from the
+  # fact, up to three hops. `via` can also name a column on the fact itself.
+  # Mark one immutable to promise it never changes after the row is created, and
+  # Grain will skip watching that table.
+  #
+  #   dimension :product_id,  via: :product_id
+  #   dimension :category_id, via: { product: :category_id }
+  #   dimension :currency,    via: { order: :currency }, immutable: true
+
+  # count needs no type. Every other aggregate runs over SQL whose type cannot be
+  # inferred, and guessing would mean silently rounding your own numbers.
+  #
+  #   measure :line_count,    count: true
+  #   measure :revenue_cents, sum: "quantity * unit_price_cents", type: :bigint
+
+  # Ratios are stored as their two parts and divided on read, so a rate stays
+  # correct at every grain rather than being frozen at the one it was computed for.
+  #
+  #   ratio :average_unit_price, of: :revenue_cents, over: :units
+end

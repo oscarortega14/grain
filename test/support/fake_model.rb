@@ -8,7 +8,7 @@
 # integer and the tests would be asserting the adapter's behaviour instead of ours.
 module FakeModel
   Column = Struct.new(:type, :null)
-  Reflection = Struct.new(:klass, :macro) do
+  Reflection = Struct.new(:klass, :macro, :foreign_key) do
     def belongs_to?
       macro == :belongs_to
     end
@@ -23,12 +23,17 @@ module FakeModel
     @fake_columns[name.to_s] = Column.new(type, null)
   end
 
-  def fake_belongs_to(name, klass)
-    @fake_associations[name.to_sym] = Reflection.new(klass, :belongs_to)
+  def fake_belongs_to(name, klass, foreign_key: "#{name}_id")
+    @fake_associations[name.to_sym] = Reflection.new(klass, :belongs_to, foreign_key)
   end
 
   def fake_has_many(name, klass)
-    @fake_associations[name.to_sym] = Reflection.new(klass, :has_many)
+    @fake_associations[name.to_sym] = Reflection.new(klass, :has_many, nil)
+  end
+
+  def table_name(name = nil)
+    @fake_table_name = name if name
+    @fake_table_name
   end
 
   def columns_hash
@@ -42,11 +47,13 @@ end
 
 class FakeCategory
   extend FakeModel
+  table_name "categories"
   column :id, :bigint
 end
 
 class FakeProduct
   extend FakeModel
+  table_name "products"
   column :id, :bigint
   # Deliberately nullable: an uncategorised product is ordinary, and it is what
   # forces the surrogate key path.
@@ -56,12 +63,14 @@ end
 
 class FakeStore
   extend FakeModel
+  table_name "stores"
   column :id, :bigint
   column :currency, :string
 end
 
 class FakeOrder
   extend FakeModel
+  table_name "orders"
   column :id, :bigint
   column :store_id, :bigint
   column :placed_at, :datetime
@@ -72,6 +81,7 @@ end
 
 class FakeLineItem
   extend FakeModel
+  table_name "line_items"
   column :id, :bigint
   column :order_id, :bigint
   column :product_id, :bigint

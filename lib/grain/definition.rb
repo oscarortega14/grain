@@ -7,17 +7,6 @@ module Grain
   class Definition
     TABLE_PREFIX = "grain_"
 
-    # Parts a rollup cannot do without, and how to complain when one is missing.
-    #
-    # A time dimension is deliberately absent: a rollup without one is a counter
-    # cache that cannot drift, which is a use case in its own right. A tenant is
-    # required, because starting the key with the most selective column is what
-    # makes reads and scoped recomputes cheap.
-    REQUIRED_PARTS = {
-      fact: "declares no fact",
-      tenant: "declares no tenant"
-    }.freeze
-
     attr_reader :owner, :fact, :dimensions, :measures, :ratios
 
     def initialize(owner)
@@ -88,10 +77,28 @@ module Grain
       "#{TABLE_PREFIX}#{owner.name.underscore.pluralize}"
     end
 
-    # Associations whose rows can move fact rows between cells. Each one needs a
-    # trigger that writes a scope invalidation rather than a delta.
+    # Paths whose tables can move fact rows between cells.
+    def watched_paths
+      dimensions.select(&:watched?).map(&:path).uniq
+    end
+
+    # Every association hop along a watched path, not only the first.
+    #
+    # A change anywhere along the path moves fact rows between cells: if a
+    # dimension resolves as order then store then currency, changing that store's
+    # currency moves every line item on every order pointing at it. Watching only
+    # the root would let that drift silently, which is the worst failure this
+    # gem can have.
     def watched_associations
-      dimensions.select(&:watched?).map { |dimension| dimension.path.root_hop }.uniq
+      watched_paths.flat_map(&:hops).uniq
+    end
+
+    # Associations the fact's filter reaches through. A change there adds or
+    # removes fact rows entirely, which no delta can express.
+    def filter_associations
+      return [] unless fact
+
+      fact.filter_associations
     end
 
     # True when a change somewhere other than the fact table can add or remove
@@ -100,42 +107,22 @@ module Grain
       fact ? fact.filtered_through_association? : false
     end
 
+    def measure_names
+      measures.map(&:name)
+    end
+
     def validate!
-      validate_required_parts!
-      validate_ratios!
-      self
+      DefinitionValidator.new(self).validate!
     end
 
     private
-
-    def validate_required_parts!
-      REQUIRED_PARTS.each do |reader, complaint|
-        raise InvalidDefinitionError, "#{owner} #{complaint}" if public_send(reader).nil?
-      end
-
-      raise InvalidDefinitionError, "#{owner} declares no measures" if measures.empty?
-    end
 
     def anonymous?
       owner.name.nil? || owner.name.empty?
     end
 
-    def measure_names
-      measures.map(&:name)
-    end
-
     def declared_names
       dimensions.map(&:name) + measure_names + ratios.map(&:name)
-    end
-
-    def validate_ratios!
-      ratios.each do |ratio|
-        [ratio.numerator, ratio.denominator].each do |part|
-          next if measure_names.include?(part)
-
-          raise InvalidDefinitionError, "ratio #{ratio.name} refers to unknown measure #{part.inspect}"
-        end
-      end
     end
 
     def reject_duplicate_name!(name)

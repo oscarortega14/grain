@@ -36,11 +36,30 @@ module Grain
       measure.type
     end
 
+    def fact_table
+      definition.fact.model.table_name
+    end
+
     def nullable_dimensions
       definition.key_dimensions.select { |dimension| dimension_nullable?(dimension) }
     end
 
+    # The validated belongs_to reflection for one hop. Public because working out
+    # which columns to watch needs the same walk and the same complaints.
+    def reflection!(model, hop, context)
+      reflection = model.reflect_on_association(hop)
+      raise InvalidDefinitionError, "#{model} has no association #{hop.inspect} (via #{context})" if reflection.nil?
+      raise InvalidDefinitionError, one_value_per_dimension(model, hop, context) unless reflection.belongs_to?
+
+      reflection
+    end
+
     private
+
+    def one_value_per_dimension(model, hop, context)
+      "#{model}##{hop} is not a belongs_to (via #{context}). A fact row must resolve to one " \
+        "value per dimension, or it would be counted in several cells at once."
+    end
 
     def source_column(dimension)
       model = walk(definition.fact.model, dimension.path)
@@ -51,20 +70,7 @@ module Grain
     end
 
     def walk(model, path)
-      path.hops.reduce(model) { |current, hop| hop_to(current, hop, path) }
-    end
-
-    def hop_to(model, hop, path)
-      reflection = model.reflect_on_association(hop)
-      raise InvalidDefinitionError, "#{model} has no association #{hop.inspect} (via #{path})" if reflection.nil?
-
-      unless reflection.belongs_to?
-        raise InvalidDefinitionError,
-              "#{model}##{hop} is not a belongs_to (via #{path}). A fact row must resolve to one " \
-              "value per dimension, or it would be counted in several cells at once."
-      end
-
-      reflection.klass
+      path.hops.reduce(model) { |current, hop| reflection!(current, hop, path).klass }
     end
   end
 end

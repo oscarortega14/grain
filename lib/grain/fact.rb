@@ -23,7 +23,15 @@ module Grain
     # the associated row changes. That is not a delta on a cell, it is an
     # invalidation of every cell the row belonged to.
     def filtered_through_association?
-      where.is_a?(Hash) && where.any? { |_, value| value.is_a?(Hash) }
+      filter_associations.any?
+    end
+
+    # The association names the filter reaches through, each of which is a table
+    # whose changes can add or remove fact rows.
+    def filter_associations
+      return [] unless where.is_a?(Hash)
+
+      where.select { |_, value| value.is_a?(Hash) }.keys.map(&:to_sym)
     end
 
     private

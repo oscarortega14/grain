@@ -16,6 +16,9 @@ module Grain
   # `verify` found rows where the rollup disagrees with its source.
   class VerificationError < Error; end
 
+  # No rollup class matches the name a command was given.
+  class RollupNotFoundError < Error; end
+
   # The change log has grown past the point where applying deltas is cheaper
   # than a backfill.
   class ChangeLogOverflowError < Error; end
