@@ -1,8 +1,19 @@
 AllCops:
   TargetRubyVersion: 3.2
+  # Files the generators write while under test are output, not source. Excluded
+  # wholesale so the linter never grades Grain on generated Ruby.
+  Exclude:
+    - "test/tmp/**/*"
+  SuggestExtensions: false
 
 Style/StringLiterals:
   EnforcedStyle: double_quotes
 
 Style/StringLiteralsInInterpolation:
   EnforcedStyle: double_quotes
+
+# Schema definitions and database round trips do not decompose into ten-line
+# methods without becoming harder to read, which is the opposite of the point.
+Metrics:
+  Exclude:
+    - "test/**/*"

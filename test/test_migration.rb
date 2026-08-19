@@ -118,7 +118,13 @@ class TestMigration < Minitest::Test
     refute_predicate migration, :surrogate_key?
     assert_includes migration.up,
                     "create_table :grain_fake_revenue_rollups, " \
-                    "primary_key: [:store_id, :ordered_on, :product_id, :currency], id: false"
+                    "primary_key: [:store_id, :ordered_on, :product_id, :currency]"
+  end
+
+  def test_a_composite_key_is_never_paired_with_id_false
+    # Rails accepts the pair and then creates no primary key at all, leaving
+    # nothing to enforce one row per cell. Found by the integration test.
+    refute_includes migration.up, "id: false"
   end
 
   def test_key_columns_are_typed_and_not_null

@@ -52,10 +52,13 @@ module Grain
       lines.join("\n")
     end
 
+    # No `id: false` alongside a composite primary key. Rails accepts the pair
+    # and then creates no primary key at all, silently, which would leave the
+    # rollup table with nothing enforcing one row per cell.
     def primary_key_option
       return ", id: :bigint" if surrogate_key?
 
-      ", primary_key: #{schema.primary_key.inspect}, id: false"
+      ", primary_key: #{schema.primary_key.inspect}"
     end
 
     def key_column_lines

@@ -7,7 +7,7 @@ require "generators/grain/install/install_generator"
 
 class TestInstallGenerator < Rails::Generators::TestCase
   tests Grain::Generators::InstallGenerator
-  destination File.expand_path("../tmp/generator", __dir__)
+  destination File.expand_path("tmp/generator", __dir__)
   setup :prepare_destination
 
   MIGRATION = "db/migrate/create_grain_change_log.rb"

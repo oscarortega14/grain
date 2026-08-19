@@ -9,7 +9,7 @@ require "generators/grain/table/table_generator"
 
 class TestRollupGenerator < Rails::Generators::TestCase
   tests Grain::Generators::RollupGenerator
-  destination File.expand_path("../tmp/generator", __dir__)
+  destination File.expand_path("tmp/generator", __dir__)
   setup :prepare_destination
 
   def test_it_scaffolds_a_definition_that_parses
@@ -33,7 +33,7 @@ end
 
 class TestTableGenerator < Rails::Generators::TestCase
   tests Grain::Generators::TableGenerator
-  destination File.expand_path("../tmp/generator", __dir__)
+  destination File.expand_path("tmp/generator", __dir__)
   setup :prepare_destination
 
   MIGRATION = "db/migrate/create_grain_fake_revenue_rollups.rb"
