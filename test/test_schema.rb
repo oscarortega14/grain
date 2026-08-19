@@ -11,7 +11,7 @@ class ProductTotalsRollup < Grain::Rollup
   dimension :product_id, via: :product_id
 
   measure :line_count, count: true
-  measure :units,      sum: "quantity"
+  measure :units,      sum: "quantity", type: :bigint
 end
 
 class TestSchema < Minitest::Test

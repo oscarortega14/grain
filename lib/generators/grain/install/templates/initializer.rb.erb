@@ -1,0 +1,19 @@
+# frozen_string_literal: true
+
+Grain.configure do |config|
+  # Table the database triggers write change events into. Changing it after the
+  # install migration has run needs a new migration: the name is baked into the
+  # trigger function.
+  config.change_log_table = <%= change_log_table.inspect %>
+
+  # Rows per batch when draining the change log or backfilling. Small enough to
+  # keep transactions short, so a busy table is never blocked for long.
+  config.batch_size = 1_000
+
+  # Seconds a worker may run before yielding, so a large backlog cannot
+  # monopolise a queue slot.
+  config.max_run_seconds = 30
+
+  # ActiveJob queue for the delta and backfill workers.
+  config.queue = :default
+end

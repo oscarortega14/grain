@@ -14,6 +14,8 @@ require_relative "grain/definition"
 require_relative "grain/rollup"
 require_relative "grain/schema"
 require_relative "grain/change_log"
+require_relative "grain/type_resolver"
+require_relative "grain/migration"
 
 # Grain keeps dashboard aggregates pre-computed and incrementally up to date
 # inside the application's own Postgres database.

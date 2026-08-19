@@ -1,0 +1,22 @@
+# frozen_string_literal: true
+
+# Written by `rails generate grain:install`.
+#
+# Every table Grain watches gets an AFTER trigger that calls
+# <%= Grain::ChangeLog::FUNCTION_NAME %>() and records what changed here. A worker
+# reads this log forward by id, decides which rollups are affected, and prunes
+# what it has processed.
+class <%= migration_class_name %> < ActiveRecord::Migration<%= migration_version %>
+  def up
+<%= change_log_table_definition %>
+
+    execute <<~SQL
+<%= change_log_function_sql %>
+    SQL
+  end
+
+  def down
+    execute "<%= change_log_drop_function_sql %>"
+    drop_table :<%= change_log_table %>
+  end
+end

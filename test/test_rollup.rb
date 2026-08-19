@@ -19,8 +19,8 @@ class OrderRevenueRollup < Grain::Rollup
   dimension :currency,    via: { order: :currency }, immutable: true
 
   measure :line_count,    count: true
-  measure :units,         sum: "quantity"
-  measure :revenue_cents, sum: "quantity * unit_price_cents"
+  measure :units,         sum: "quantity", type: :bigint
+  measure :revenue_cents, sum: "quantity * unit_price_cents", type: :bigint
   ratio   :average_unit_price, of: :revenue_cents, over: :units
 end
 
@@ -122,7 +122,7 @@ class TestRollupValidation < Minitest::Test
       fact "LineItem"
       tenant :store_id, via: :store_id
       time :ordered_on, via: :placed_on, grain: :day
-      measure :units, sum: "quantity"
+      measure :units, sum: "quantity", type: :bigint
       ratio :average_unit_price, of: :revenue_cents, over: :units
     end
 

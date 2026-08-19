@@ -46,8 +46,8 @@ class OrderRevenueRollup < Grain::Rollup
   dimension :currency,    via: { order: :currency }, immutable: true
 
   measure :line_count,    count: true
-  measure :units,         sum: "quantity"
-  measure :revenue_cents, sum: "quantity * unit_price_cents"
+  measure :units,         sum: "quantity", type: :bigint
+  measure :revenue_cents, sum: "quantity * unit_price_cents", type: :bigint
   ratio   :average_unit_price, of: :revenue_cents, over: :units
 end
 ```
