@@ -4,8 +4,7 @@ require "test_helper"
 require "active_record"
 require "rails/generators"
 require_relative "support/database"
-require "generators/grain/install/install_generator"
-require "generators/grain/table/table_generator"
+require_relative "support/harness"
 
 # Every key dimension resolves to a NOT NULL column, so this one gets a plain
 # composite primary key.
@@ -35,16 +34,19 @@ end
 # Postgres. Nothing here asserts on a string: the point is whether the SQL Grain
 # produces actually does what it claims.
 class TestIntegration < Minitest::Test
-  GENERATED = File.expand_path("tmp/integration", __dir__)
-
   def setup
     skip "Postgres not available at #{Database::URL}" unless Database.available?
     Database.load_schema!
-    FileUtils.rm_rf(GENERATED)
-    apply_install
+    # Pinned rather than discovered: other test files declare rollups over an
+    # entirely different schema, and the trigger column list is a union across
+    # everything registered.
+    Grain::Registry.reset!
+    Grain::Registry.register(IntegrationRevenueRollup, IntegrationCategoryRollup)
+    Harness.install!
   end
 
   def teardown
+    Grain::Registry.reset!
     Database.drop_everything! if Database.available?
   end
 
@@ -52,34 +54,6 @@ class TestIntegration < Minitest::Test
 
   def connection
     Database.connection
-  end
-
-  def apply_install
-    quietly { Grain::Generators::InstallGenerator.start([], destination_root: GENERATED) }
-    run_generated_migration("CreateGrainChangeLog")
-  end
-
-  def apply_table(rollup)
-    quietly do
-      Grain::Generators::TableGenerator.start([rollup.name.underscore], destination_root: GENERATED)
-    end
-    run_generated_migration("Create#{Grain::Migration.new(rollup.definition).table_name.camelize}")
-  end
-
-  def run_generated_migration(class_name)
-    path = Dir[File.join(GENERATED, "db/migrate/*_#{class_name.underscore}.rb")].max
-    raise "no migration matched #{class_name}" if path.nil?
-
-    load path
-    Database.silence { Object.const_get(class_name).new.migrate(:up) }
-  end
-
-  def quietly
-    original = $stdout
-    $stdout = StringIO.new
-    yield
-  ensure
-    $stdout = original
   end
 
   def change_log
@@ -108,7 +82,7 @@ class TestIntegration < Minitest::Test
   # -- the rollup table ------------------------------------------------------
 
   def test_a_composite_primary_key_is_created_as_declared
-    apply_table(IntegrationRevenueRollup)
+    Harness.build_table!(IntegrationRevenueRollup)
 
     key = connection.select_values(<<~SQL)
       SELECT a.attname
@@ -122,7 +96,7 @@ class TestIntegration < Minitest::Test
   end
 
   def test_the_time_column_stores_a_date_even_though_the_source_is_one
-    apply_table(IntegrationRevenueRollup)
+    Harness.build_table!(IntegrationRevenueRollup)
 
     type = connection.select_value(<<~SQL)
       SELECT data_type FROM information_schema.columns
@@ -133,7 +107,7 @@ class TestIntegration < Minitest::Test
   end
 
   def test_measures_are_not_null_and_default_to_zero
-    apply_table(IntegrationRevenueRollup)
+    Harness.build_table!(IntegrationRevenueRollup)
 
     row = connection.select_one(<<~SQL)
       SELECT is_nullable, column_default FROM information_schema.columns
@@ -148,7 +122,7 @@ class TestIntegration < Minitest::Test
     # The riskiest assumption in the schema layer: Postgres rejects nulls in a
     # primary key, so uniqueness has to come from an index that treats them as
     # equal. This proves the generated DDL is accepted and behaves.
-    apply_table(IntegrationCategoryRollup)
+    Harness.build_table!(IntegrationCategoryRollup)
 
     name = Grain::Migration.new(IntegrationCategoryRollup.definition).uniqueness_index_name
     definition = connection.select_value(<<~SQL)
@@ -174,7 +148,7 @@ class TestIntegration < Minitest::Test
   # -- the triggers ----------------------------------------------------------
 
   def test_inserting_a_fact_row_is_logged_without_a_previous_row
-    apply_table(IntegrationRevenueRollup)
+    Harness.build_table!(IntegrationRevenueRollup)
     seeded = seed_order
 
     LineItem.create!(order: seeded[:order], product: seeded[:product], quantity: 2, unit_price_cents: 500)
@@ -187,7 +161,7 @@ class TestIntegration < Minitest::Test
   end
 
   def test_updating_a_fact_row_records_the_row_as_it_was
-    apply_table(IntegrationRevenueRollup)
+    Harness.build_table!(IntegrationRevenueRollup)
     seeded = seed_order
     item = LineItem.create!(order: seeded[:order], product: seeded[:product], quantity: 2, unit_price_cents: 500)
     connection.execute("DELETE FROM grain_change_log")
@@ -202,7 +176,7 @@ class TestIntegration < Minitest::Test
   end
 
   def test_deleting_a_fact_row_logs_the_old_id_not_a_null
-    apply_table(IntegrationRevenueRollup)
+    Harness.build_table!(IntegrationRevenueRollup)
     seeded = seed_order
     item = LineItem.create!(order: seeded[:order], product: seeded[:product])
     connection.execute("DELETE FROM grain_change_log")
@@ -216,7 +190,7 @@ class TestIntegration < Minitest::Test
   end
 
   def test_a_watched_column_on_a_related_table_wakes_the_trigger
-    apply_table(IntegrationRevenueRollup)
+    Harness.build_table!(IntegrationRevenueRollup)
     seeded = seed_order(state: "pending")
     connection.execute("DELETE FROM grain_change_log")
 
@@ -228,7 +202,7 @@ class TestIntegration < Minitest::Test
   def test_an_unwatched_column_stays_quiet
     # The whole reason triggers narrow their UPDATE. Without this, a busy table
     # writes a log row for every update it ever takes and the gem is unusable.
-    apply_table(IntegrationRevenueRollup)
+    Harness.build_table!(IntegrationRevenueRollup)
     seeded = seed_order
     connection.execute("DELETE FROM grain_change_log")
 
@@ -238,8 +212,8 @@ class TestIntegration < Minitest::Test
   end
 
   def test_two_rollups_over_the_same_table_share_one_trigger
-    apply_table(IntegrationRevenueRollup)
-    apply_table(IntegrationCategoryRollup)
+    Harness.build_table!(IntegrationRevenueRollup)
+    Harness.build_table!(IntegrationCategoryRollup)
 
     count = connection.select_value(<<~SQL)
       SELECT count(*) FROM pg_trigger
@@ -250,10 +224,10 @@ class TestIntegration < Minitest::Test
   end
 
   def test_installing_a_second_rollup_over_a_watched_table_is_not_an_error
-    apply_table(IntegrationRevenueRollup)
+    Harness.build_table!(IntegrationRevenueRollup)
 
     # Would raise if attaching were not written as drop-then-create.
-    apply_table(IntegrationCategoryRollup)
+    Harness.build_table!(IntegrationCategoryRollup)
 
     assert_includes connection.tables, "grain_integration_category_rollups"
   end

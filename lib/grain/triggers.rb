@@ -1,17 +1,17 @@
 # frozen_string_literal: true
 
 module Grain
-  # Works out which tables a rollup needs a trigger on, which columns of each one
-  # are worth reacting to, and renders the SQL that attaches them.
+  # Works out which tables need a trigger, which columns of each are worth
+  # reacting to, and renders the SQL that attaches them.
   #
-  # Triggers are named per table rather than per rollup, because the function they
-  # call is shared: several rollups reading the same table get one trigger between
-  # them. Attaching is written as a drop-then-create so that installing a second
-  # rollup over the same table is not an error.
+  # Built from every rollup that touches a table, not from one at a time. The
+  # trigger name is per table because the function it calls is shared, so a
+  # migration that considered only its own rollup would narrow a trigger another
+  # rollup depends on and leave that one drifting in silence. The column list is
+  # therefore the union across all of them.
   class Triggers
-    # One trigger per table. `update_columns` narrows the UPDATE trigger to the
-    # columns that can actually move a row between cells; nil means every update
-    # has to be logged.
+    # `update_columns` narrows the UPDATE trigger to the columns that can move a
+    # row between cells; nil means every update has to be logged.
     Spec = Struct.new(:table, :update_columns, keyword_init: true) do
       def trigger_name
         "grain_#{table}_changed"
@@ -22,17 +22,15 @@ module Grain
       end
     end
 
-    attr_reader :definition, :types
+    attr_reader :definitions
 
-    def initialize(definition)
-      @definition = definition.validate!
-      @types = TypeResolver.new(definition)
+    def initialize(definitions)
+      @definitions = Array(definitions).map(&:validate!).uniq
     end
 
-    # The fact table first, then every table along a watched path, then the tables
-    # the filter reaches through.
+    # Fact tables first, then the tables reached through them.
     def specs
-      ([fact_spec] + related_specs).uniq(&:table)
+      fact_specs + related_specs
     end
 
     # One statement per entry, so a migration can execute them individually
@@ -55,15 +53,29 @@ module Grain
 
     private
 
-    # Measures aggregate arbitrary SQL, so which of the fact table's columns feed
-    # them cannot be known. Narrowing here risks missing an update and letting the
-    # rollup drift in silence, so every update on the fact is logged.
-    def fact_spec
-      Spec.new(table: types.fact_table, update_columns: nil)
+    # Measures aggregate arbitrary SQL, so which of a fact table's columns feed
+    # them cannot be known. Narrowing here risks missing an update and letting a
+    # rollup drift, so every update on a fact table is logged. Being a fact for
+    # any one rollup is enough to disqualify the table from narrowing.
+    def fact_specs
+      fact_tables.map { |table| Spec.new(table: table, update_columns: nil) }
+    end
+
+    def fact_tables
+      definitions.map { |definition| TypeResolver.new(definition).fact_table }.uniq
     end
 
     def related_specs
-      WatchedColumns.new(definition).to_h.map { |table, columns| Spec.new(table: table, update_columns: columns.sort) }
+      union_of_related_columns.reject { |table, _| fact_tables.include?(table) }
+                              .map { |table, columns| Spec.new(table: table, update_columns: columns.sort) }
+    end
+
+    def union_of_related_columns
+      definitions.each_with_object({}) do |definition, union|
+        WatchedColumns.new(definition).to_h.each do |table, columns|
+          union[table] = ((union[table] || []) + columns).uniq
+        end
+      end
     end
 
     def create_sql(spec)

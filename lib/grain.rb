@@ -20,6 +20,11 @@ require_relative "grain/type_resolver"
 require_relative "grain/migration"
 require_relative "grain/watched_columns"
 require_relative "grain/triggers"
+require_relative "grain/registry"
+require_relative "grain/projection"
+require_relative "grain/cells"
+require_relative "grain/recompute"
+require_relative "grain/worker"
 
 # Grain keeps dashboard aggregates pre-computed and incrementally up to date
 # inside the application's own Postgres database.

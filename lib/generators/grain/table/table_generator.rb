@@ -54,8 +54,15 @@ module Grain
         @migration ||= Grain::Migration.new(definition)
       end
 
+      # Every rollup in the application, not just this one. The trigger on a
+      # table is shared, so narrowing it to what this rollup happens to need
+      # would silently break any other rollup that needs more.
       def triggers
-        @triggers ||= Grain::Triggers.new(definition)
+        @triggers ||= Grain::Triggers.new(all_definitions)
+      end
+
+      def all_definitions
+        (Grain::Registry.all + [rollup]).uniq.map(&:definition)
       end
 
       # Deliberately not called migration_file_name or migration_class_name:

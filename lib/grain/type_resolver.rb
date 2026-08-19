@@ -24,6 +24,13 @@ module Grain
       source_column(dimension).type
     end
 
+    # The type of the column a dimension is read from, before any bucketing. A
+    # time dimension needs this to know whether the source is already a calendar
+    # day or a timestamp that has to be resolved to one.
+    def source_type(dimension)
+      source_column(dimension).type
+    end
+
     # Whether the source column can be null, which decides whether the rollup can
     # use a plain composite primary key: Postgres will not accept a null in one.
     def dimension_nullable?(dimension)

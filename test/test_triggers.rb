@@ -86,6 +86,28 @@ class TestTriggers < Minitest::Test
     assert_match(/\ACREATE TRIGGER grain_line_items_changed/, statements[1])
   end
 
+  def test_a_shared_table_takes_the_union_of_what_every_rollup_needs
+    # The bug this guards against: FakeStoreCurrencyRollup does not filter on
+    # state, so on its own it would narrow the orders trigger and stop the other
+    # rollup from ever hearing about a state change.
+    combined = Grain::Triggers.new([FakeRevenueRollup.definition, FakeStoreCurrencyRollup.definition])
+    orders = combined.specs.find { |spec| spec.table == "orders" }
+
+    assert_equal %w[placed_at state store_id], orders.update_columns
+  end
+
+  def test_a_table_that_is_a_fact_anywhere_is_never_narrowed
+    counter = Class.new(Grain::Rollup) do
+      fact "FakeOrder"
+      tenant :store_id, via: :store_id
+      measure :order_count, count: true
+    end
+    combined = Grain::Triggers.new([FakeRevenueRollup.definition, counter.definition])
+    orders = combined.specs.find { |spec| spec.table == "orders" }
+
+    refute_predicate orders, :narrowed?
+  end
+
   def test_down_only_drops
     two_hop.down_statements.each { |statement| assert_match(/\ADROP TRIGGER IF EXISTS/, statement) }
     assert_equal 3, two_hop.down_statements.length

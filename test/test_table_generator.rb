@@ -35,6 +35,16 @@ class TestTableGenerator < Rails::Generators::TestCase
   tests Grain::Generators::TableGenerator
   destination File.expand_path("tmp/generator", __dir__)
   setup :prepare_destination
+  setup :pin_registry
+  teardown { Grain::Registry.reset! }
+
+  # The trigger column list is a union across every registered rollup, so the
+  # test has to say which ones exist rather than letting the registry find the
+  # fixtures other files declare.
+  def pin_registry
+    Grain::Registry.reset!
+    Grain::Registry.register(FakeRevenueRollup, FakeCategoryRollup)
+  end
 
   MIGRATION = "db/migrate/create_grain_fake_revenue_rollups.rb"
 
