@@ -1,12 +1,16 @@
 # frozen_string_literal: true
 
 module Grain
-  # Rebuilds a set of cells from the source: the primitive everything else falls
-  # back to, and the only operation that is correct no matter what happened.
+  # Rebuilds cells from the source: the primitive everything else falls back to,
+  # and the only operation that is correct no matter what happened.
   #
   # Delete and then re-insert rather than upsert, because a cell can legitimately
   # become empty. An upsert would leave the old numbers standing when the last
   # source row for a cell goes away.
+  #
+  # Being complete rather than incremental has a useful consequence: a recompute
+  # cannot be half-applied and cannot be applied out of order, so a backfill and
+  # the worker can run at the same time without coordinating.
   class Recompute
     attr_reader :definition, :projection
 
@@ -15,30 +19,41 @@ module Grain
       @projection = Projection.new(definition)
     end
 
+    # Rebuilds a known list of cells.
     def call(cells)
       cells = cells.uniq
       return 0 if cells.empty?
 
-      connection.execute(delete_sql(cells))
-      connection.execute(insert_sql(cells))
+      rebuild(matches(cells) { |key| quote_column(key) }, matches(cells) { |key| expression_for(key) })
       cells.length
     end
 
-    def delete_sql(cells)
-      "DELETE FROM #{table_name} WHERE #{cells.map { |cell| match(cell) { |key| quote_column(key) } }.join(" OR ")}"
+    # Rebuilds every cell in a slice, for when the cells are not known in advance
+    # and all that is known is which slice has to be right — a backfill working
+    # through one day or one tenant at a time.
+    def call_slice(dimension, value)
+      rebuild(
+        "#{quote_column(dimension.name)} IS NOT DISTINCT FROM #{quote(value)}",
+        "#{expression_for(dimension.name)} IS NOT DISTINCT FROM #{quote(value)}"
+      )
     end
 
-    def insert_sql(cells)
+    private
+
+    def rebuild(stored_where, source_where)
+      connection.execute("DELETE FROM #{table_name} WHERE #{stored_where}")
+      connection.execute(insert_sql(source_where))
+    end
+
+    def insert_sql(source_where)
       <<~SQL
         INSERT INTO #{table_name} (#{columns.join(", ")})
         SELECT #{expressions.join(", ")}
         FROM #{projection.from_and_joins.join(" ")}
-        WHERE #{where_for(cells)}
+        WHERE #{(projection.filter_conditions + [source_where]).join(" AND ")}
         GROUP BY #{projection.dimension_expressions.join(", ")}
       SQL
     end
-
-    private
 
     def table_name
       definition.table_name
@@ -52,9 +67,8 @@ module Grain
       projection.dimension_expressions + projection.aggregate_expressions
     end
 
-    def where_for(cells)
-      matches = cells.map { |cell| match(cell) { |key| dimension_expression(key) } }
-      (projection.filter_conditions + ["(#{matches.join(" OR ")})"]).join(" AND ")
+    def matches(cells, &naming)
+      "(#{cells.map { |cell| match(cell, &naming) }.join(" OR ")})"
     end
 
     # IS NOT DISTINCT FROM rather than =, because a dimension resolved from a
@@ -62,18 +76,22 @@ module Grain
     # never true.
     def match(cell)
       parts = projection.key_columns.map do |key|
-        "#{yield(key)} IS NOT DISTINCT FROM #{connection.quote(cell[key])}"
+        "#{yield(key)} IS NOT DISTINCT FROM #{quote(cell[key])}"
       end
       "(#{parts.join(" AND ")})"
     end
 
-    def dimension_expression(key)
-      @dimension_expressions ||= projection.key_columns.zip(projection.dimension_expressions).to_h
-      @dimension_expressions.fetch(key)
+    def expression_for(key)
+      @expressions ||= projection.key_columns.zip(projection.dimension_expressions).to_h
+      @expressions.fetch(key)
     end
 
     def quote_column(key)
       connection.quote_column_name(key)
+    end
+
+    def quote(value)
+      connection.quote(value)
     end
 
     def connection

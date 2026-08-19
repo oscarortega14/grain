@@ -57,6 +57,12 @@ module Grain
         definition.validate!
       end
 
+      # Populates the rollup from data that already exists. A new rollup is empty
+      # until this runs: its triggers only see what happens next.
+      def backfill(from: nil, pause: 0, &progress)
+        Backfill.new(self, from: from, pause: pause).call(&progress)
+      end
+
       # Recomputes from the source and reports every cell that disagrees. Pass
       # repair: true to rebuild the ones that do.
       def verify(tenant: nil, between: nil, repair: false)
