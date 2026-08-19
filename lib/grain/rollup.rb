@@ -56,6 +56,12 @@ module Grain
       def validate!
         definition.validate!
       end
+
+      # Recomputes from the source and reports every cell that disagrees. Pass
+      # repair: true to rebuild the ones that do.
+      def verify(tenant: nil, between: nil, repair: false)
+        Verification.new(self, tenant: tenant, between: between).call(repair: repair)
+      end
     end
   end
 end

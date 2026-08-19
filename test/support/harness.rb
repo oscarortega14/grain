@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require "fileutils"
 require "rails/generators"
 require "generators/grain/install/install_generator"
 require "generators/grain/table/table_generator"
@@ -14,6 +15,7 @@ module Harness
 
   class << self
     def install!
+      clear_once!
       apply(install_path, "CreateGrainChangeLog")
     end
 
@@ -23,6 +25,15 @@ module Harness
     end
 
     private
+
+    # Files left by an earlier run would be reused, so a change to the generators
+    # would not show up in the tests that exist to catch it.
+    def clear_once!
+      return if @cleared
+
+      FileUtils.rm_rf(GENERATED)
+      @cleared = true
+    end
 
     def install_path
       cached("CreateGrainChangeLog") do

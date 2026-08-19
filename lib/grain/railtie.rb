@@ -10,6 +10,10 @@ module Grain
       Grain.config.logger ||= Rails.logger
     end
 
+    rake_tasks do
+      load File.expand_path("../tasks/grain.rake", __dir__)
+    end
+
     initializer "grain.autoload_rollups" do |app|
       app.config.autoload_paths << app.root.join("app/rollups") if app.root.join("app/rollups").exist?
     end
