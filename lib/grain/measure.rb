@@ -20,15 +20,17 @@ module Grain
     # revenue. The declaration is one word, and it is cheap insurance.
     COUNT_TYPE = :bigint
 
-    attr_reader :name, :aggregate, :expression, :type
+    attr_reader :name, :aggregate, :expression, :type, :through
 
     def self.from_options(name, options)
       options = options.dup
       type = options.delete(:type)
+      through = options.delete(:through)
       reject_ambiguous_aggregate!(name, options)
 
       aggregate, value = options.first
-      new(name: name, aggregate: aggregate, expression: value == true ? nil : value, type: type)
+      new(name: name, aggregate: aggregate, expression: value == true ? nil : value,
+          type: type, through: through)
     end
 
     def self.reject_ambiguous_aggregate!(name, options)
@@ -39,11 +41,12 @@ module Grain
     end
     private_class_method :reject_ambiguous_aggregate!
 
-    def initialize(name:, aggregate:, expression: nil, type: nil)
+    def initialize(name:, aggregate:, expression: nil, type: nil, through: nil)
       @name = name.to_sym
       @aggregate = aggregate.to_sym
       @expression = expression
       @type = (type || (@aggregate == :count ? COUNT_TYPE : nil))&.to_sym
+      @through = wrap(through).map { |path| Path.parse_association(path) }.freeze
       validate!
       freeze
     end
@@ -70,6 +73,16 @@ module Grain
     end
 
     private
+
+    # Not Array(), which turns a Hash into a list of pairs and would take
+    # `through: { order: :store }` apart into two unrelated associations.
+    def wrap(through)
+      case through
+      when nil then []
+      when Array then through
+      else [through]
+      end
+    end
 
     def validate!
       validate_aggregate!

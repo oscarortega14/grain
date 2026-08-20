@@ -76,8 +76,12 @@ module Grain
         rollup.definition.fact.model.table_name
       end
 
+      # Both the tables dimensions are resolved through and the tables measures
+      # read from. Missing the second set is a silent failure: the trigger fires,
+      # the log takes the row, and nothing routes it to a rollup that cares.
       def watched_tables(rollup)
-        WatchedColumns.new(rollup.definition).to_h.keys
+        columns = WatchedColumns.new(rollup.definition)
+        columns.to_h.keys + columns.unnarrowable_tables
       end
     end
   end

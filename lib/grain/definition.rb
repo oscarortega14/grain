@@ -93,6 +93,14 @@ module Grain
       watched_paths.flat_map(&:hops).uniq
     end
 
+    # Associations a measure's expression reads columns from. Their joins have to
+    # exist for the expression to resolve, and their tables have to be watched: a
+    # match's score changing alters what a measure computes even though no fact
+    # row moved.
+    def measure_paths
+      measures.flat_map(&:through).uniq
+    end
+
     # Associations the fact's filter reaches through. A change there adds or
     # removes fact rows entirely, which no delta can express.
     def filter_associations

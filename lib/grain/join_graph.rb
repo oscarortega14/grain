@@ -11,6 +11,12 @@ module Grain
     # verbatim, so this is the name they can qualify columns with.
     FACT = "f"
 
+    # Joined tables are aliased by the association path that reaches them, so an
+    # expression can read `g_match.home_score` rather than a generated j0. The
+    # prefix keeps the alias clear of SQL keywords: `belongs_to :order` would
+    # otherwise produce `order`, which does not parse.
+    ALIAS_PREFIX = "g_"
+
     Joined = Struct.new(:name, :model, :on, keyword_init: true)
 
     attr_reader :definition, :types
@@ -53,9 +59,14 @@ module Grain
     private
 
     def register_all
-      definition.key_dimensions.reject { |dimension| dimension.path.local? }
-                .each { |dimension| register(dimension.path.hops) }
+      dimension_hops.each { |hops| register(hops) }
+      definition.measure_paths.each { |path| register(path.hops) }
       definition.filter_associations.each { |association| register([association]) }
+    end
+
+    def dimension_hops
+      definition.key_dimensions.reject { |dimension| dimension.path.local? }
+                .map { |dimension| dimension.path.hops }
     end
 
     # A local column needs no join, so an empty path is a caller's mistake rather
@@ -69,7 +80,9 @@ module Grain
 
     def join_for(hops, parent)
       reflection = types.reflection!(parent.model, hops.last, hops.join("."))
-      name = "j#{@joined.size}"
+      # Named by the whole path rather than the last hop: two different routes can
+      # end at the same table, and one alias for both would be ambiguous.
+      name = "#{ALIAS_PREFIX}#{hops.join("_")}"
       Joined.new(name: name, model: reflection.klass, on: "#{name}.id = #{parent.name}.#{reflection.foreign_key}")
     end
 

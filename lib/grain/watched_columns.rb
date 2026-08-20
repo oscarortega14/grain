@@ -28,7 +28,22 @@ module Grain
       collected
     end
 
+    # Tables a measure's expression reads from, which cannot be narrowed at all.
+    #
+    # Same reasoning as the fact table: the expression is arbitrary SQL and there
+    # is no way to know which of its columns feed the measure. Guessing risks
+    # missing an update and drifting in silence, so every update is logged.
+    def unnarrowable_tables
+      definition.measure_paths.flat_map { |path| tables_along(path) }.uniq
+    end
+
     private
+
+    def tables_along(path)
+      model = definition.fact.model
+      path.hops.map { |hop| model = resolver.reflection!(model, hop, path).klass }
+          .map(&:table_name)
+    end
 
     def add_path(path, into)
       path.hops.each_with_index.reduce(definition.fact.model) do |model, (hop, index)|

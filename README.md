@@ -188,8 +188,31 @@ measure :revenue_cents, sum: "quantity * unit_price_cents", type: :bigint
 measure :largest_line,  max: "quantity * unit_price_cents", type: :bigint
 ```
 
-`count`, `sum`, `min` and `max`. Expressions are your own SQL over the fact table,
-which is aliased `f` if you need to qualify a column.
+`count`, `sum`, `min` and `max`. Expressions are your own SQL. The fact table is
+aliased `f`.
+
+An expression can read columns from a related table by declaring the associations
+it needs with `through:`. Joined tables are aliased `g_` plus the path that
+reaches them, so the expression stays readable:
+
+```ruby
+measure :paid_lines,
+        sum: "CASE WHEN g_order.state = 'paid' THEN 1 ELSE 0 END",
+        type: :bigint,
+        through: :order
+
+measure :local_cents,
+        sum: "CASE WHEN g_order_store.currency = 'COP' THEN f.quantity * f.unit_price_cents ELSE 0 END",
+        type: :bigint,
+        through: { order: :store }
+```
+
+Grain watches every table a measure reads, so changing one of those columns
+rebuilds the affected cells even though no fact row moved. Those tables log
+**every** update rather than a narrowed set, for the same reason the fact table
+does: the expression is arbitrary SQL and there is no telling which of its
+columns feed the measure. That is a real cost — weigh it before pointing a
+measure at a table that is written constantly.
 
 `sum`, `min` and `max` require an explicit `type:`. `count` does not, since
 counting rows always yields an integer. The others aggregate arbitrary SQL whose
@@ -403,6 +426,7 @@ Stated plainly, because finding these out later is worse than reading them now.
   no percentiles: neither can be maintained without reading the rest of the cell's
   source rows, which needs sketches (HyperLogLog, t-digest) rather than a column.
 - **`belongs_to` chains only**, three hops deep. No `has_many`, no join tables.
+  This applies to a measure's `through:` as much as to a dimension's `via:`.
 - **Daily grain only.** No hourly buckets yet.
 - **One fact per rollup.** No joins between facts, and no rollups built on rollups.
 - **No deltas.** The worker recomputes affected cells rather than incrementing

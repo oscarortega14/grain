@@ -26,6 +26,22 @@ module Grain
       new(hops, column)
     end
 
+    # A path with no terminal column: just the associations a measure's expression
+    # needs joined in, so it can read their columns.
+    #
+    #   parse_association(:match)          # hops [:match]
+    #   parse_association(order: :store)   # hops [:order, :store]
+    def self.parse_association(through)
+      case through
+      when Symbol, String then new([through], nil)
+      when Hash
+        hops, column = walk(through, [])
+        new(hops + [column], nil)
+      else
+        raise InvalidDefinitionError, "through takes an association name or a nested hash, got #{through.inspect}"
+      end
+    end
+
     def self.walk(via, hops)
       case via
       when Symbol, String then [hops, via.to_sym]
@@ -50,7 +66,7 @@ module Grain
 
     def initialize(hops, column)
       @hops = hops.map(&:to_sym).freeze
-      @column = column.to_sym
+      @column = column&.to_sym
       validate!
       freeze
     end
@@ -66,7 +82,7 @@ module Grain
     end
 
     def to_s
-      (hops + [column]).join(".")
+      (hops + [column]).compact.join(".")
     end
 
     def inspect

@@ -28,9 +28,9 @@ module Grain
       @definitions = Array(definitions).map(&:validate!).uniq
     end
 
-    # Fact tables first, then the tables reached through them.
+    # The tables that cannot be narrowed first, then the ones that can.
     def specs
-      fact_specs + related_specs
+      unnarrowed_specs + related_specs
     end
 
     # One statement per entry, so a migration can execute them individually
@@ -53,20 +53,23 @@ module Grain
 
     private
 
-    # Measures aggregate arbitrary SQL, so which of a fact table's columns feed
-    # them cannot be known. Narrowing here risks missing an update and letting a
-    # rollup drift, so every update on a fact table is logged. Being a fact for
-    # any one rollup is enough to disqualify the table from narrowing.
-    def fact_specs
-      fact_tables.map { |table| Spec.new(table: table, update_columns: nil) }
+    # Measures aggregate arbitrary SQL, so which columns feed them cannot be known
+    # — not on the fact table, and not on any table a measure reads through. Both
+    # therefore log every update: narrowing would risk missing one and letting a
+    # rollup drift in silence. Being unnarrowable for any single rollup is enough
+    # to disqualify a table for all of them.
+    def unnarrowed_specs
+      unnarrowed_tables.map { |table| Spec.new(table: table, update_columns: nil) }
     end
 
-    def fact_tables
-      definitions.map { |definition| TypeResolver.new(definition).fact_table }.uniq
+    def unnarrowed_tables
+      definitions.flat_map do |definition|
+        [TypeResolver.new(definition).fact_table] + WatchedColumns.new(definition).unnarrowable_tables
+      end.uniq
     end
 
     def related_specs
-      union_of_related_columns.reject { |table, _| fact_tables.include?(table) }
+      union_of_related_columns.reject { |table, _| unnarrowed_tables.include?(table) }
                               .map { |table, columns| Spec.new(table: table, update_columns: columns.sort) }
     end
 
