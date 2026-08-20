@@ -7,7 +7,7 @@
 # rules, not an adapter's type mapping. SQLite would report a bigint column as an
 # integer and the tests would be asserting the adapter's behaviour instead of ours.
 module FakeModel
-  Column = Struct.new(:type, :null)
+  Column = Struct.new(:type, :null, :limit)
   Reflection = Struct.new(:klass, :macro, :foreign_key) do
     def belongs_to?
       macro == :belongs_to
@@ -19,8 +19,11 @@ module FakeModel
     base.instance_variable_set(:@fake_associations, {})
   end
 
+  # Declared the way ActiveRecord reports them: a bigint column arrives as
+  # :integer with a limit of 8, which is the distinction Grain has to notice.
   def column(name, type, null: false)
-    @fake_columns[name.to_s] = Column.new(type, null)
+    reported, limit = type == :bigint ? [:integer, 8] : [type, nil]
+    @fake_columns[name.to_s] = Column.new(reported, null, limit)
   end
 
   def fake_belongs_to(name, klass, foreign_key: "#{name}_id")

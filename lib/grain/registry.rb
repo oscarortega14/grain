@@ -48,10 +48,18 @@ module Grain
         Rollup.subclasses.select { |rollup| rollup.name && valid?(rollup) }
       end
 
+      # Constantized rather than required, so the autoloader stays in charge.
+      # Requiring a file Zeitwerk manages either double-defines the class or fails
+      # outright, and in development nothing has referenced these yet.
       def eager_load_rollups
         return unless defined?(Rails) && Rails.respond_to?(:root) && Rails.root
 
-        Dir[Rails.root.join("app/rollups/**/*.rb")].sort.each { |path| require path }
+        directory = Rails.root.join("app/rollups")
+        return unless directory.exist?
+
+        Dir[directory.join("**/*.rb")].sort.each do |path|
+          path.delete_prefix("#{directory}/").delete_suffix(".rb").camelize.safe_constantize
+        end
       end
 
       # A rollup that cannot be used is left out rather than allowed to take the

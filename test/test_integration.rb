@@ -69,6 +69,40 @@ class TestIntegration < Minitest::Test
 
   # -- the install migration -------------------------------------------------
 
+  def test_triggers_can_be_reattached_after_a_schema_load_strips_them
+    # schema.rb cannot represent a function or a trigger, so loading a schema —
+    # which is how test databases are built — creates the tables and drops
+    # everything that keeps them correct.
+    Harness.build_table!(IntegrationRevenueRollup)
+    assert_predicate Grain::Installer, :installed?
+
+    connection.execute("DROP FUNCTION #{Grain::ChangeLog::FUNCTION_NAME}() CASCADE")
+
+    refute_predicate Grain::Installer, :installed?
+    assert_equal 0, connection.select_value(<<~SQL)
+      SELECT count(*) FROM pg_trigger WHERE tgrelid = 'line_items'::regclass AND NOT tgisinternal
+    SQL
+
+    tables = Grain::Installer.install!
+
+    assert_predicate Grain::Installer, :installed?
+    assert_includes tables, "line_items"
+    assert_equal 1, connection.select_value(<<~SQL)
+      SELECT count(*) FROM pg_trigger WHERE tgrelid = 'line_items'::regclass AND NOT tgisinternal
+    SQL
+  end
+
+  def test_reattaching_twice_is_not_an_error
+    Harness.build_table!(IntegrationRevenueRollup)
+
+    Grain::Installer.install!
+    Grain::Installer.install!
+
+    assert_equal 1, connection.select_value(<<~SQL)
+      SELECT count(*) FROM pg_trigger WHERE tgrelid = 'line_items'::regclass AND NOT tgisinternal
+    SQL
+  end
+
   def test_the_install_migration_creates_the_change_log_and_the_function
     assert_includes connection.tables, "grain_change_log"
 

@@ -69,6 +69,14 @@ class TestTypeResolver < Minitest::Test
     assert_empty resolver.nullable_dimensions
   end
 
+  def test_a_bigint_source_column_stays_a_bigint
+    # ActiveRecord reports bigint as :integer with limit 8. Taking that at face
+    # value would key the rollup on four bytes and break past two billion.
+    assert_equal :integer, FakeLineItem.columns_hash["order_id"].type
+    assert_equal 8, FakeLineItem.columns_hash["order_id"].limit
+    assert_equal :bigint, resolver.dimension_type(dimension(:product_id))
+  end
+
   def test_a_missing_column_is_reported_with_the_model_that_lacks_it
     rollup = Class.new(Grain::Rollup) do
       fact "FakeLineItem"

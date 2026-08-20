@@ -12,6 +12,12 @@ module Grain
     # the row falls into, so its type comes from the grain rather than the source.
     BUCKET_TYPES = { day: :date }.freeze
 
+    # ActiveRecord reports a bigint column as :integer carrying a limit of 8, so
+    # taking its type at face value would key a rollup on four bytes while the
+    # source uses eight. That holds until an id passes two billion and then stops,
+    # silently, on a table nobody thinks to look at.
+    INTEGER_WIDTHS = { 8 => :bigint, 2 => :integer, 1 => :integer }.freeze
+
     attr_reader :definition
 
     def initialize(definition)
@@ -21,7 +27,7 @@ module Grain
     def dimension_type(dimension)
       return BUCKET_TYPES.fetch(dimension.grain) if dimension.time?
 
-      source_column(dimension).type
+      widen(source_column(dimension))
     end
 
     # The type of the column a dimension is read from, before any bucketing. A
@@ -66,6 +72,12 @@ module Grain
     def one_value_per_dimension(model, hop, context)
       "#{model}##{hop} is not a belongs_to (via #{context}). A fact row must resolve to one " \
         "value per dimension, or it would be counted in several cells at once."
+    end
+
+    def widen(column)
+      return column.type unless column.type == :integer && column.limit == 8
+
+      INTEGER_WIDTHS.fetch(column.limit, :integer)
     end
 
     def source_column(dimension)

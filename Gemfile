@@ -14,6 +14,7 @@ gem "rubocop", "~> 1.21"
 
 # Grain ships Rails generators, so the generators are tested against the real
 # thing: an ERB template that renders invalid Ruby is a bug that reaches users.
+gem "activejob", ">= 7.1"
 gem "railties", ">= 7.1"
 
 # Integration tests run against a real Postgres. The SQL Grain generates is the

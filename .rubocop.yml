@@ -17,3 +17,11 @@ Style/StringLiteralsInInterpolation:
 Metrics:
   Exclude:
     - "test/**/*"
+
+# A rake namespace is one block by construction; splitting it to satisfy a line
+# count would scatter related tasks across files.
+Metrics/BlockLength:
+  Exclude:
+    - "lib/tasks/*.rake"
+    # A gemspec is one block by definition.
+    - "*.gemspec"

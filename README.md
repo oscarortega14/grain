@@ -112,7 +112,19 @@ what makes it true about the past.
 $ bin/rails grain:drain
 ```
 
-Run that on a schedule, or call `Grain::Worker.drain` from a job of your own.
+Or schedule `Grain::DrainJob`, which does the same thing from ActiveJob:
+
+```yaml
+# config/recurring.yml, with Solid Queue
+production:
+  grain_drain:
+    class: Grain::DrainJob
+    schedule: every minute
+```
+
+Overlapping runs are safe and need no guard: claiming uses `FOR UPDATE SKIP
+LOCKED`, so two drains at once split the work rather than repeat it. A slow run
+caught by the next tick is not a problem.
 
 **5. Read it.**
 
@@ -391,6 +403,54 @@ silence. Precise where it can be, conservative where it cannot.
 The column list is the union across every rollup that watches a table, so adding
 a rollup never narrows a trigger another one depends on.
 
+## Triggers and schema loading
+
+**`schema.rb` cannot represent a function or a trigger.** Rails' schema dumper
+knows tables, columns and indexes, and nothing else, so loading a schema creates
+every table and silently drops everything that keeps them correct. That is how
+test databases are built by default, and what `db:reset` and restoring a dump both
+do — leaving a rollup that never updates and a test suite that passes anyway.
+
+Re-attach them after any schema load:
+
+```console
+$ bin/rails grain:triggers
+```
+
+```ruby
+Grain::Installer.install!   # safe to call any number of times
+Grain::Installer.installed? # false right after a schema load
+```
+
+In a test suite, put it where the database is prepared:
+
+```ruby
+# test/test_helper.rb
+class ActiveSupport::TestCase
+  Grain::Installer.install!
+end
+```
+
+### Tests that read a rollup have to drain
+
+A page backed by a rollup only shows what the worker has already applied, and in a
+test nothing is running one. Any test that writes and then reads a rollup — or
+renders something that does — has to drain in between:
+
+```ruby
+Prediction.create!(...)
+Grain::Worker.drain
+get standings_path
+```
+
+That includes a test that mutates data *after* its own setup already drained. This
+is real friction, and the first thing to check when a test that should show new
+numbers shows the old ones.
+
+The other option is `config.active_record.schema_format = :sql`, which dumps
+through `pg_dump` and keeps functions and triggers. That is the more thorough fix
+and a bigger change to how an application works, so Grain does not assume it.
+
 ## Configuration
 
 ```ruby
@@ -399,6 +459,7 @@ Grain.configure do |config|
   config.change_log_table = "grain_change_log"  # baked into the trigger function
   config.batch_size = 1_000                     # change log rows claimed per transaction
   config.max_run_seconds = 30                   # how long a drain may run before yielding
+  config.queue = :default                       # queue Grain::DrainJob runs on
   config.time_zone = "UTC"                      # the zone day buckets are cut in
   config.logger = Rails.logger
 end
@@ -433,9 +494,9 @@ Stated plainly, because finding these out later is worse than reading them now.
   them. Batching makes this fine in ordinary use — a thousand inserts landing in
   ten cells cost ten recomputes — but a single enormous cell is recomputed in full
   every time it is touched.
-- **No job integration.** There is no ActiveJob class yet: run `rake grain:drain`
-  on a schedule or call `Grain::Worker.drain` from a job of your own.
 - **`pause:` is a fixed wait**, not adaptive throttling on replication lag.
+- **Triggers do not survive a `schema.rb` load** and have to be re-attached with
+  `rake grain:triggers`. See above; this catches everyone once.
 - **A rollup with a broken model reference is skipped with a warning** rather than
   raising, so one bad rollup cannot stop the log from draining. Watch your logs.
 

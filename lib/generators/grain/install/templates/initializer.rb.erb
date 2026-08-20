@@ -14,4 +14,7 @@ Grain.configure do |config|
   # monopolise a queue slot.
   config.max_run_seconds = 30
 
+  # Queue Grain::DrainJob runs on.
+  config.queue = :default
+
 end

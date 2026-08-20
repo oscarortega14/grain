@@ -35,8 +35,8 @@ module Grain
         say ""
         say "Grain installed. Next:", :green
         say "  1. bin/rails db:migrate"
-        say "  2. Declare a rollup in app/rollups"
-        say "  3. bin/rails generate grain:rollup <name>  (to build its table and triggers)"
+        say "  2. bin/rails generate grain:rollup <name>   (writes a definition to fill in)"
+        say "  3. bin/rails generate grain:table <name>    (builds its table and triggers)"
         say ""
       end
 
