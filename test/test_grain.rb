@@ -15,6 +15,7 @@ class TestGrain < Minitest::Test
     assert_equal "grain_change_log", Grain.config.change_log_table
     assert_equal 1_000, Grain.config.batch_size
     assert_equal 30, Grain.config.max_run_seconds
+    assert_equal "UTC", Grain.config.time_zone
   end
 
   def test_configure_yields_the_configuration
