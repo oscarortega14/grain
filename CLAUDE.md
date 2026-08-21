@@ -14,11 +14,12 @@ matar el proyecto), `../ideas-negocio.md`, `../ekklesia/CLAUDE.md` (integración
   backfill, API de lectura, `DrainJob`.
 - **Probada en una app real** (`../golbet`, porras de fútbol): coincide con la implementación de
   referencia en Ruby y lee entre 6x y 62x más rápido.
-- **Segunda app** (`../ekklesia`, multi-tenant de verdad con `acts_as_tenant`): instalada, dos
-  rollups, backfill corrido, `verify` limpio y 26 specs que la comparan contra los endpoints que
-  reemplaza. Salieron dos cambios de ahí: las lecturas exigen tenant (incompatible) y una dimensión
-  de tiempo nulable ya se reporta como nulable. Falta cambiar los endpoints, que espera a que esa
-  app tenga dónde programar el worker. Detalle en `../ekklesia/CLAUDE.md`.
+- **Segunda app, completa** (`../ekklesia`, multi-tenant de verdad con `acts_as_tenant`): dos
+  rollups, `verify` limpio, 26 specs que los comparan contra los endpoints que reemplazan, el
+  worker programado con Solid Queue (probado en Linux: el drenado ocurre solo) y los tres endpoints
+  de `stats` ya leyendo el rollup. Salieron tres cambios de ahí: las lecturas exigen tenant
+  (incompatible), la dimensión de tiempo nulable, y los filtros de lista con `nil` o vacíos.
+  Detalle en `../ekklesia/CLAUDE.md`.
 - **Hay cambios sin commitear** en grain y en golbet (DrainJob, Installer, README). Los commits
   los hace el usuario; yo redacto los mensajes y no ejecuto `git commit`.
 - Versión en `lib/grain/version.rb` = 0.0.1. Pendiente publicar 0.0.2 con los nueve arreglos que
