@@ -147,7 +147,7 @@ class TestMigration < Minitest::Test
     refute_predicate migration, :surrogate_key?
     assert_includes migration.up,
                     "create_table :grain_fake_revenue_rollups, " \
-                    "primary_key: [:store_id, :ordered_on, :product_id, :currency]"
+                    "primary_key: [ :store_id, :ordered_on, :product_id, :currency ]"
   end
 
   def test_a_composite_key_is_never_paired_with_id_false
@@ -198,8 +198,20 @@ class TestMigration < Minitest::Test
   def test_the_surrogate_path_keeps_uniqueness_with_nulls_treated_as_equal
     up = Grain::Migration.new(FakeCategoryRollup.definition).up
 
-    assert_includes up, "add_index :grain_fake_category_rollups, [:store_id, :category_id], unique: true"
+    assert_includes up, "add_index :grain_fake_category_rollups, [ :store_id, :category_id ], unique: true"
     assert_includes up, "nulls_not_distinct: true"
+  end
+
+  def test_generated_arrays_carry_the_spaces_omakase_wants
+    # rubocop-rails-omakase ships with every `rails new` on Rails 8 and lints
+    # db/migrate — db/schema.rb is excluded, migrations are not. Array#inspect
+    # writes [:a, :b] and would put an application's linter in the red over a file
+    # Grain wrote, again every time the migration is regenerated.
+    up = Grain::Migration.new(FakeCategoryRollup.definition).up
+
+    assert_includes up, "[ :store_id, :category_id ]"
+    refute_match(/\[:/, up)
+    refute_match(/:\]/, up)
   end
 
   def test_down_drops_the_table

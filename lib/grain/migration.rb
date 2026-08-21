@@ -43,6 +43,15 @@ module Grain
 
     private
 
+    # Array#inspect renders [:a, :b], and rubocop-rails-omakase wants the inner
+    # spaces. That matters because omakase ships with every `rails new` on Rails 8
+    # and lints db/migrate — db/schema.rb is excluded, migrations are not. Without
+    # this, installing Grain puts an application's linter in the red over a file it
+    # did not write, and regenerating the migration brings the offence back.
+    def symbol_list(names)
+      "[ #{names.map(&:inspect).join(", ")} ]"
+    end
+
     def create_table
       lines = ["create_table :#{table_name}#{primary_key_option} do |t|"]
       lines.concat(key_column_lines)
@@ -58,7 +67,7 @@ module Grain
     def primary_key_option
       return ", id: :bigint" if surrogate_key?
 
-      ", primary_key: #{schema.primary_key.inspect}"
+      ", primary_key: #{symbol_list(schema.primary_key)}"
     end
 
     def key_column_lines
@@ -80,7 +89,7 @@ module Grain
     def uniqueness_index
       return nil unless surrogate_key?
 
-      "add_index :#{table_name}, #{schema.key_columns.inspect}, unique: true,\n" \
+      "add_index :#{table_name}, #{symbol_list(schema.key_columns)}, unique: true,\n" \
         "          nulls_not_distinct: true, name: #{uniqueness_index_name.inspect}"
     end
 

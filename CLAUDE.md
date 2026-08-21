@@ -22,9 +22,9 @@ matar el proyecto), `../ideas-negocio.md`, `../ekklesia/CLAUDE.md` (integración
   Detalle en `../ekklesia/CLAUDE.md`.
 - **Hay cambios sin commitear** en grain y en golbet (DrainJob, Installer, README). Los commits
   los hace el usuario; yo redacto los mensajes y no ejecuto `git commit`.
-- **0.0.2 lista para publicar, sin publicar.** Versión bumpeada, CHANGELOG escrito con sección de
-  Upgrading, descripción del gemspec corregida, bloque de estado del README al día, y
-  `grain-0.0.2.gem` construida. Falta `git push` y `gem push`, que los hace el usuario.
+- **0.0.2 publicada** en RubyGems, commiteada y tagueada.
+- **0.0.3 construida, sin publicar**: un solo arreglo, que las migraciones generadas pasen
+  `rubocop-rails-omakase`. Falta `git push`, `gem push grain-0.0.3.gem` y el tag `v0.0.3`.
 
 ## Cómo trabajar aquí
 
@@ -113,6 +113,10 @@ API: `Rollup.for(...).between(...).by(...)`, `.verify(repair:)`, `.backfill(from
 - **`FULL OUTER JOIN` en Postgres no acepta `IS NOT DISTINCT FROM`.** `verify` usa `UNION ALL` +
   `GROUP BY`, que además ya trata los nulos como iguales.
 - **Afirmar sobre números sin afirmar el tipo.** `assert_equal 1400, BigDecimal(1400)` pasa.
+- **El código que Grain emite tiene que pasar el linter de la app donde cae.** Las migraciones
+  escribían `[:a, :b]` y `rubocop-rails-omakase` —el default de todo `rails new` en Rails 8, y que
+  sí linea `db/migrate`— quiere `[ :a, :b ]`. Instalar la gema dejaba el linter en rojo por un
+  archivo que la app no escribió. El `.rubocop.yml` de Grain no usa omakase, por eso no se veía.
 - **`[nil].any?` es `false`, y `[false].any?` también.** Preguntar por verdadez si una lista de
   valores trae algo tira justo los valores que hay que tratar. Va con `empty?`. Recién mordió al
   arreglar los filtros de lista: el `IS NULL` no se agregaba nunca y el `nil` de la lista

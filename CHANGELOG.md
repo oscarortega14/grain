@@ -1,5 +1,16 @@
 ## [Unreleased]
 
+## [0.0.3] - 2026-08-21
+
+### Fixed
+
+- **Generated migrations tripped the linter of the app they landed in.** They
+  wrote `[ :a, :b ]` as `[:a, :b]`, and `rubocop-rails-omakase` — which ships with
+  every `rails new` on Rails 8 — wants the inner spaces. It lints `db/migrate`;
+  `db/schema.rb` is the excluded one. So installing Grain put an application's
+  linter in the red over a file it had not written, and regenerating the migration
+  after a definition changed, which Grain asks for, brought the offence back.
+
 ## [0.0.2] - 2026-08-21
 
 Everything here came out of using Grain in two real applications: a football
