@@ -13,12 +13,13 @@ module Grain
   class Query
     attr_reader :rollup, :definition
 
-    def initialize(rollup, filters: {}, range: nil, groups: {})
+    def initialize(rollup, filters: {}, range: nil, groups: {}, across_tenants: false)
       @rollup = rollup
       @definition = rollup.definition.validate!
       @filters = filters
       @range = range
       @groups = groups
+      @across_tenants = across_tenants
     end
 
     # Filters on any dimension. A value may be an id, an ActiveRecord object, an
@@ -46,7 +47,15 @@ module Grain
       merge(groups: @groups.merge(groups))
     end
 
+    # Reads every tenant at once, which is a real thing to want — a platform-wide
+    # total, an admin dashboard — and has to be asked for by name. The dangerous
+    # read is the one nobody can see in the code.
+    def across_tenants
+      merge(across_tenants: true)
+    end
+
     def sql
+      require_tenant!
       QuerySql.new(definition, filters: @filters, range: @range, groups: @groups).to_s
     end
 
@@ -82,7 +91,15 @@ module Grain
     private
 
     def merge(**changes)
-      self.class.new(rollup, filters: @filters, range: @range, groups: @groups, **changes)
+      self.class.new(rollup,
+                     filters: @filters, range: @range, groups: @groups,
+                     across_tenants: @across_tenants, **changes)
+    end
+
+    # Checked where the statement is built rather than left to the caller: the
+    # mistake this catches produces a plausible number, not an error.
+    def require_tenant!
+      TenantGuard.new(rollup, @filters).check! unless @across_tenants
     end
 
     def readable?(name)

@@ -157,6 +157,8 @@ workspace, an organisation.
 tenant :store_id, via: { order: :store_id }
 ```
 
+Reads refuse to run without it. See [Reading](#reading).
+
 ### `time` — optional
 
 The bucket rows fall into. Only `grain: :day` in this release.
@@ -171,6 +173,11 @@ cache, except one you can verify instead of one that quietly drifts.
 Timestamps are resolved to a calendar day in an explicit zone (`config.time_zone`,
 UTC by default). Left to the database session, the same row would land in
 different buckets for different callers.
+
+A nullable source column is allowed, and the rows with no timestamp collect in a
+null bucket — the bucket of a null is null, so the rollup takes the surrogate key
+path like any other nullable dimension. If those rows have no business being in
+the aggregate at all, keep them out with the fact's `where:` instead.
 
 ### `dimension`
 
@@ -309,8 +316,14 @@ mine.by(:product_id).to_h                  # keyed by group
 mine.sql                                   # the statement, for when you want to look
 ```
 
+- **The tenant is required.** A read that does not name one raises
+  `Grain::MissingTenantError` rather than totalling every tenant at once. That
+  read does not return a wrong number, it returns somebody else's, and nothing
+  about the result looks unusual — so it fails instead of warning. Grain has no
+  safe default here: it cannot know whose data the caller is entitled to.
 - **`for`** filters any dimension. Values may be ids, ActiveRecord objects,
-  arrays, or `nil` (which matches a null coordinate).
+  arrays, or `nil` (which matches a null coordinate). A `nil` *tenant* is refused
+  too: no cell can have one, so the read would come back a clean, wrong zero.
 - **`between`** takes two dates or a range.
 - **`by`** groups. Coarsen the time bucket with `by(ordered_on: :month)` —
   `:day`, `:week`, `:month`, `:quarter`, `:year`.
@@ -322,6 +335,16 @@ mine.sql                                   # the statement, for when you want to
   largest line, not the total of every day's largest.
 - Narrowing returns a new query, so a base query can be handed around and reused.
 - Results come back typed — `Date` and `Integer`, not the driver's strings.
+
+Spanning every tenant is a real thing to want — a platform-wide total, an admin
+dashboard — and it is asked for by name:
+
+```ruby
+OrderRevenueRollup.across_tenants.by(:product_id).revenue_cents
+```
+
+Grepping for `across_tenants` then lists every read that crosses the boundary,
+which is not something you can do with an omission.
 
 ## Backfilling
 

@@ -39,9 +39,12 @@ module Grain
 
     # Whether the source column can be null, which decides whether the rollup can
     # use a plain composite primary key: Postgres will not accept a null in one.
+    #
+    # A time dimension is not exempt. It stores a bucket rather than the source
+    # timestamp, but the bucket of a null timestamp is null, and declaring that
+    # column NOT NULL inside the primary key makes the first such row fail to
+    # insert — on the fact table, at write time, far from anything about Grain.
     def dimension_nullable?(dimension)
-      return false if dimension.time?
-
       source_column(dimension).null
     end
 

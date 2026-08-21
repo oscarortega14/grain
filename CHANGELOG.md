@@ -1,5 +1,23 @@
 ## [Unreleased]
 
+### Breaking
+
+- **Reads require their tenant.** `Rollup.by(...)` without a `for(tenant: ...)`
+  now raises `Grain::MissingTenantError` instead of aggregating every tenant into
+  one number. The read it replaces did not return a wrong figure, it returned
+  another tenant's, and nothing about the result gave that away. A `nil` tenant is
+  refused for the same reason: no cell can hold one, so the read came back a clean
+  zero. Spanning every tenant is asked for by name with
+  `Rollup.across_tenants`, which also makes those reads greppable.
+
+### Fixed
+
+- A `time` dimension resolved from a **nullable** column is now reported as
+  nullable, so the rollup takes the surrogate key path instead of declaring the
+  bucket `NOT NULL` inside the primary key. Before this, the first fact row with
+  no timestamp failed to insert — at write time, on the application's own table,
+  with nothing pointing at Grain.
+
 ## [0.0.1] - 2026-08-19
 
 First published release. Feature complete for a first pass and tested end to end

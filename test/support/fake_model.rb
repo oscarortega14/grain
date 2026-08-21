@@ -77,6 +77,9 @@ class FakeOrder
   column :id, :bigint
   column :store_id, :bigint
   column :placed_at, :datetime
+  # Deliberately nullable: most orders are never cancelled, and a time dimension
+  # resolved from this column buckets those rows to null.
+  column :cancelled_at, :datetime, null: true
   column :state, :string
   fake_belongs_to :store, FakeStore
   fake_has_many :line_items, nil

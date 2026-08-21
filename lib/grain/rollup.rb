@@ -74,6 +74,12 @@ module Grain
         query.by(*names, **coarse)
       end
 
+      # Lifts the tenant requirement for a read that is meant to span every one
+      # of them. Reads are keyed by tenant and refuse to run without it.
+      def across_tenants
+        query.across_tenants
+      end
+
       # Populates the rollup from data that already exists. A new rollup is empty
       # until this runs: its triggers only see what happens next.
       def backfill(from: nil, pause: 0, &progress)

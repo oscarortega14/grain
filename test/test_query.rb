@@ -216,6 +216,46 @@ class TestQuery < Minitest::Test
     end
   end
 
+  # -- tenant isolation ------------------------------------------------------
+
+  def test_a_read_without_its_tenant_refuses_to_run
+    # The failure mode this replaces: 2300, silently, being this store's 1400
+    # plus a competitor's 900.
+    error = assert_raises(Grain::MissingTenantError) { ShopMetricsRollup.by(:product_id).revenue_cents }
+
+    assert_match(/store_id/, error.message)
+    assert_match(/across_tenants/, error.message)
+  end
+
+  def test_building_the_statement_refuses_too_and_not_only_running_it
+    # sql is public and gets pasted into consoles, so the guard cannot live in
+    # the part that happens to execute it.
+    assert_raises(Grain::MissingTenantError) { ShopMetricsRollup.by(:product_id).sql }
+  end
+
+  def test_across_tenants_reads_every_tenant
+    assert_equal 2300, ShopMetricsRollup.across_tenants.revenue_cents
+    assert_equal 5, ShopMetricsRollup.across_tenants.line_count
+  end
+
+  def test_across_tenants_survives_being_narrowed_further
+    # merge builds a new query, and dropping the flag there would turn the
+    # escape hatch into a raise the moment anyone grouped or ranged on it.
+    query = ShopMetricsRollup.across_tenants
+                             .between(Date.new(2026, 8, 1), Date.new(2026, 8, 31))
+                             .by(:product_id)
+
+    assert_equal({ @coffee.id => 1400, @mug.id => 500 }, query.revenue_cents)
+  end
+
+  def test_a_null_tenant_refuses_rather_than_reading_as_zero
+    # for(store_id: current_user.store_id) with a nil store_id matches no cell
+    # and reads as a clean zero, which is a lie about the data rather than a leak.
+    error = assert_raises(Grain::MissingTenantError) { ShopMetricsRollup.for(store_id: nil).revenue_cents }
+
+    assert_match(/never null/, error.message)
+  end
+
   def test_it_answers_to_the_measures_it_has_and_not_to_others
     assert_respond_to mine, :revenue_cents
     assert_respond_to mine, :average_unit_price

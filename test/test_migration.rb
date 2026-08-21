@@ -26,6 +26,16 @@ class FakeCategoryRollup < Grain::Rollup
   measure :line_count, count: true
 end
 
+# cancelled_at is nullable, so the day bucket it resolves to is nullable too.
+class FakeCancellationRollup < Grain::Rollup
+  fact "FakeLineItem"
+
+  tenant :store_id,     via: { order: :store_id }
+  time   :cancelled_on, via: { order: :cancelled_at }, grain: :day
+
+  measure :line_count, count: true
+end
+
 class TestTypeResolver < Minitest::Test
   def resolver
     Grain::TypeResolver.new(FakeRevenueRollup.definition)
@@ -67,6 +77,17 @@ class TestTypeResolver < Minitest::Test
 
   def test_a_rollup_over_non_null_columns_reports_none
     assert_empty resolver.nullable_dimensions
+  end
+
+  def test_a_nullable_time_source_makes_its_bucket_nullable
+    # The bucket of a null timestamp is null. Reporting a time dimension as NOT
+    # NULL because it is a time dimension put that column in the primary key and
+    # broke the next insert into the fact table.
+    types = Grain::TypeResolver.new(FakeCancellationRollup.definition)
+    dimension = FakeCancellationRollup.definition.time
+
+    assert types.dimension_nullable?(dimension)
+    assert_equal %i[cancelled_on], types.nullable_dimensions.map(&:name)
   end
 
   def test_a_bigint_source_column_stays_a_bigint
@@ -164,6 +185,14 @@ class TestMigration < Minitest::Test
     assert_predicate nullable, :surrogate_key?
     assert_includes nullable.up, "create_table :grain_fake_category_rollups, id: :bigint"
     assert_includes nullable.up, "t.bigint :category_id\n"
+  end
+
+  def test_a_nullable_time_bucket_takes_the_surrogate_path_too
+    nullable = Grain::Migration.new(FakeCancellationRollup.definition)
+
+    assert_predicate nullable, :surrogate_key?
+    assert_includes nullable.up, "t.date :cancelled_on\n"
+    refute_includes nullable.up, "t.date :cancelled_on, null: false"
   end
 
   def test_the_surrogate_path_keeps_uniqueness_with_nulls_treated_as_equal

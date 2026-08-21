@@ -9,11 +9,16 @@ matar el proyecto), `../ideas-negocio.md`, `../ekklesia/CLAUDE.md` (integración
 
 ## Estado
 
-- **199 tests, 0 fallas. Rubocop limpio.** `bundle exec rake` corre ambos.
+- **206 tests, 0 fallas. Rubocop limpio.** `bundle exec rake` corre ambos.
 - Alcance de la v1 **completo**: definición, esquema, generadores, triggers, worker, `verify`,
   backfill, API de lectura, `DrainJob`.
 - **Probada en una app real** (`../golbet`, porras de fútbol): coincide con la implementación de
   referencia en Ruby y lee entre 6x y 62x más rápido.
+- **Segunda app** (`../ekklesia`, multi-tenant de verdad con `acts_as_tenant`): instalada, dos
+  rollups, backfill corrido, `verify` limpio y 26 specs que la comparan contra los endpoints que
+  reemplaza. Salieron dos cambios de ahí: las lecturas exigen tenant (incompatible) y una dimensión
+  de tiempo nulable ya se reporta como nulable. Falta cambiar los endpoints, que espera a que esa
+  app tenga dónde programar el worker. Detalle en `../ekklesia/CLAUDE.md`.
 - **Hay cambios sin commitear** en grain y en golbet (DrainJob, Installer, README). Los commits
   los hace el usuario; yo redacto los mensajes y no ejecuto `git commit`.
 - Versión en `lib/grain/version.rb` = 0.0.1. Pendiente publicar 0.0.2 con los nueve arreglos que
@@ -80,7 +85,13 @@ API: `Rollup.for(...).between(...).by(...)`, `.verify(repair:)`, `.backfill(from
 10. **Los ratios se guardan en dos partes y se dividen al leer.** Nunca pre-divididos.
 11. **Grain emite archivos de migración**, no crea tablas en runtime, y la migración es una
     fotografía (el SQL va literal, no leído de la gema).
-12. **Los agregados se castean al tipo declarado.** `SUM` sobre `bigint` da `numeric`; sin el cast
+12. **Las lecturas exigen el tenant; cruzarlo se pide por su nombre** (`across_tenants`). Una
+    lectura sin tenant no devuelve un número equivocado, devuelve el de otro inquilino, y no hay
+    default seguro que Grain pueda elegir: no sabe de quién es el dato que le toca a quien
+    pregunta. Un tenant `nil` se rechaza igual, porque ninguna celda puede tener uno y la lectura
+    volvería como un cero limpio. La escotilla existe porque el caso legítimo existe (un panel de
+    administración), y así queda greppable.
+13. **Los agregados se castean al tipo declarado.** `SUM` sobre `bigint` da `numeric`; sin el cast
     hay falsos positivos permanentes en `verify` y `BigDecimal` en las lecturas.
 
 ## Patrones de bug que ya morderon — no reintroducir
@@ -100,6 +111,9 @@ API: `Rollup.for(...).between(...).by(...)`, `.verify(repair:)`, `.backfill(from
 - **`FULL OUTER JOIN` en Postgres no acepta `IS NOT DISTINCT FROM`.** `verify` usa `UNION ALL` +
   `GROUP BY`, que además ya trata los nulos como iguales.
 - **Afirmar sobre números sin afirmar el tipo.** `assert_equal 1400, BigDecimal(1400)` pasa.
+- **Tratar una dimensión de tiempo como exenta de la nulabilidad de su fuente.** Guarda un bucket,
+  no el timestamp, pero el bucket de un nulo es nulo. Declararlo `NOT NULL` dentro de la llave
+  primaria hacía fallar el primer insert **en la tabla de hechos de la app**, lejos de Grain.
 
 ## Limitaciones vigentes (están en el README)
 
@@ -111,6 +125,9 @@ throttling adaptativo por lag de replicación. Un rollup con modelo roto se salt
 ## Lo que sigue
 
 1. Actualizar el bloque de estado del README (ya está probada en una app real) y publicar 0.0.2.
+   Ojo: 0.0.2 ya lleva **un cambio incompatible** (el tenant obligatorio en las lecturas). Está en
+   el CHANGELOG bajo `Unreleased`. golbet no se rompe — su única lectura ya pasaba el tenant, y su
+   suite corre verde contra la gema parcheada.
 2. La descripción publicada en RubyGems dice "maintains it with deltas", que **es falso** y
    contradice al propio README. Los metadatos no se editan; se corrige en 0.0.2.
 3. El artículo fundacional: *"Cómo matamos nuestras vistas materializadas"*, con los números de

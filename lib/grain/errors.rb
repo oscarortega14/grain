@@ -16,6 +16,10 @@ module Grain
   # `verify` found rows where the rollup disagrees with its source.
   class VerificationError < Error; end
 
+  # A rollup keyed by tenant was read without one. Not a wrong number: somebody
+  # else's number, which is why it raises instead of warning.
+  class MissingTenantError < Error; end
+
   # No rollup class matches the name a command was given.
   class RollupNotFoundError < Error; end
 
