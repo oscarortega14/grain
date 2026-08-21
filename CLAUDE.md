@@ -9,7 +9,7 @@ matar el proyecto), `../ideas-negocio.md`, `../ekklesia/CLAUDE.md` (integración
 
 ## Estado
 
-- **206 tests, 0 fallas. Rubocop limpio.** `bundle exec rake` corre ambos.
+- **208 tests, 0 fallas. Rubocop limpio.** `bundle exec rake` corre ambos.
 - Alcance de la v1 **completo**: definición, esquema, generadores, triggers, worker, `verify`,
   backfill, API de lectura, `DrainJob`.
 - **Probada en una app real** (`../golbet`, porras de fútbol): coincide con la implementación de
@@ -111,6 +111,13 @@ API: `Rollup.for(...).between(...).by(...)`, `.verify(repair:)`, `.backfill(from
 - **`FULL OUTER JOIN` en Postgres no acepta `IS NOT DISTINCT FROM`.** `verify` usa `UNION ALL` +
   `GROUP BY`, que además ya trata los nulos como iguales.
 - **Afirmar sobre números sin afirmar el tipo.** `assert_equal 1400, BigDecimal(1400)` pasa.
+- **`[nil].any?` es `false`, y `[false].any?` también.** Preguntar por verdadez si una lista de
+  valores trae algo tira justo los valores que hay que tratar. Va con `empty?`. Recién mordió al
+  arreglar los filtros de lista: el `IS NULL` no se agregaba nunca y el `nil` de la lista
+  desaparecía en silencio, que es el bug que se estaba arreglando.
+- **`IN` trata al nulo como desconocido, no como coordenada.** `for(dim: [id, nil])` dejaba fuera
+  las celdas sin valor —las que un panel muestra como "sin categoría"— sin señal. Y `IN ()` no es
+  SQL válido: una lista vacía es `FALSE`, no un error de sintaxis.
 - **Tratar una dimensión de tiempo como exenta de la nulabilidad de su fuente.** Guarda un bucket,
   no el timestamp, pero el bucket de un nulo es nulo. Declararlo `NOT NULL` dentro de la llave
   primaria hacía fallar el primer insert **en la tabla de hechos de la app**, lejos de Grain.

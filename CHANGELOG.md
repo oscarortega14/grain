@@ -12,6 +12,14 @@
 
 ### Fixed
 
+- `for(dimension: [])` raised a Postgres syntax error from `IN ()`. An empty list
+  is what `current_user.churches.ids` hands over when there are none, and it now
+  matches nothing instead of failing.
+- `for(dimension: [id, nil])` silently dropped the null coordinate: `IN` treats a
+  null as an unknown that equals nothing, so the cells with no value for that
+  dimension — the ones a dashboard labels "uncategorised" — fell out of the answer
+  with no sign they had been left out. A list containing `nil` now matches them,
+  the same as passing `nil` on its own already did.
 - A `time` dimension resolved from a **nullable** column is now reported as
   nullable, so the rollup takes the surrogate key path instead of declaring the
   bucket `NOT NULL` inside the primary key. Before this, the first fact row with

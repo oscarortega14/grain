@@ -210,6 +210,14 @@ class TestQuery < Minitest::Test
     assert_equal 500, mine.for(product_id: [@mug.id]).revenue_cents
   end
 
+  def test_an_empty_list_matches_nothing_instead_of_failing
+    # Arrives as current_user.products.ids coming back empty. IN () is not valid
+    # SQL, so this used to raise a syntax error out of a dashboard.
+    assert_equal 0, mine.for(product_id: []).revenue_cents
+    assert_equal 0, mine.for(product_id: []).line_count
+    assert_empty mine.for(product_id: []).by(:product_id).rows
+  end
+
   def test_a_rollup_without_a_time_dimension_refuses_a_range
     assert_raises(Grain::Error) do
       IntegrationCategoryRollup.between(Date.new(2026, 1, 1), Date.new(2026, 12, 31))

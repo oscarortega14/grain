@@ -179,6 +179,26 @@ class TestIntegration < Minitest::Test
     assert_match(/duplicate key/, error.message)
   end
 
+  def test_a_null_coordinate_is_readable_on_its_own_and_inside_a_list
+    # The cells a dashboard labels "uncategorised". A list of ids that includes
+    # nil has to match them: IN treats a null as an unknown that equals nothing,
+    # so they used to disappear from the answer with no sign they were left out.
+    Harness.build_table!(IntegrationCategoryRollup)
+    connection.execute(<<~SQL)
+      INSERT INTO grain_integration_category_rollups (store_id, category_id, line_count)
+      VALUES (1, 7, 10), (1, 9, 20), (1, NULL, 5)
+    SQL
+
+    mine = IntegrationCategoryRollup.for(store_id: 1)
+
+    assert_equal 35, mine.line_count
+    assert_equal 5, mine.for(category_id: nil).line_count
+    assert_equal 10, mine.for(category_id: [7]).line_count
+    assert_equal 15, mine.for(category_id: [7, nil]).line_count
+    assert_equal 5, mine.for(category_id: [nil]).line_count
+    assert_equal 0, mine.for(category_id: []).line_count
+  end
+
   # -- the triggers ----------------------------------------------------------
 
   def test_inserting_a_fact_row_is_logged_without_a_previous_row

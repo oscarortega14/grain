@@ -62,8 +62,32 @@ module Grain
       column = quote_column(name)
       case value
       when nil then "#{column} IS NULL"
-      when Array then "#{column} IN (#{value.map { |item| quote(item) }.join(", ")})"
+      when Array then any_of(column, value)
       else "#{column} = #{quote(value)}"
+      end
+    end
+
+    # A list is a set of coordinates to match, and a null is one of them: the
+    # cells with no value for a dimension are the ones a dashboard shows as
+    # "uncategorised". IN would treat that null as an unknown rather than a
+    # coordinate, so those cells would drop out of the answer without a word.
+    #
+    # An empty list is not a mistake either — it is `current_user.churches.ids`
+    # coming back empty — and it means nothing matches. `IN ()` is not valid SQL,
+    # so before this it raised a syntax error from inside a dashboard.
+    # empty? rather than any?: [nil].any? is false, and so is [false].any?, so
+    # asking whether there is anything in a list of values by truthiness drops
+    # exactly the values this method exists to handle.
+    def any_of(column, values)
+      nulls, present = values.partition(&:nil?)
+      parts = []
+      parts << "#{column} IN (#{present.map { |item| quote(item) }.join(", ")})" unless present.empty?
+      parts << "#{column} IS NULL" unless nulls.empty?
+
+      case parts.length
+      when 0 then "FALSE"
+      when 1 then parts.first
+      else "(#{parts.join(" OR ")})"
       end
     end
 
