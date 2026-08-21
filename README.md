@@ -31,11 +31,14 @@ OrderRevenueRollup.for(store: current_store)
 
 > ### Status
 >
-> Version 0.0.1. Feature complete for a first pass and tested end to end against
-> a live PostgreSQL, including the generators, the triggers, the worker,
-> verification, backfilling and reads. **Not yet used in a real application**, so
-> the API may still change. Treat it as something to read and argue with rather
-> than something to put in front of customers this week.
+> Version 0.0.2, and **in use in two real applications**: a football pool, where
+> it agrees with the Ruby implementation it replaced and reads between 6x and 62x
+> faster, and a multi-tenant church management API, where its dashboard endpoints
+> now read rollups. Everything in 0.0.2 came out of that — including one breaking
+> change, so read the CHANGELOG before upgrading.
+>
+> Still 0.x. The API can still change, and the limitations below are real rather
+> than theoretical.
 
 ## The problem
 

@@ -1,5 +1,10 @@
 ## [Unreleased]
 
+## [0.0.2] - 2026-08-21
+
+Everything here came out of using Grain in two real applications: a football
+pool (golbet) and a multi-tenant church management API (ekklesia).
+
 ### Breaking
 
 - **Reads require their tenant.** `Rollup.by(...)` without a `for(tenant: ...)`
@@ -7,11 +12,44 @@
   one number. The read it replaces did not return a wrong figure, it returned
   another tenant's, and nothing about the result gave that away. A `nil` tenant is
   refused for the same reason: no cell can hold one, so the read came back a clean
-  zero. Spanning every tenant is asked for by name with
-  `Rollup.across_tenants`, which also makes those reads greppable.
+  zero. Spanning every tenant is asked for by name with `Rollup.across_tenants`,
+  which also makes those reads greppable.
+- **Joined tables are aliased `g_<path>` instead of `j0`, `j1`.** Named by the
+  whole association path, because two routes can end at the same table and one
+  alias for both is ambiguous. A measure expression written against a generated
+  alias has to be updated.
+- **Tables a measure reads through now log every update**, which changes the
+  triggers a rollup installs. Regenerate the table migration for every rollup that
+  uses `through:` — see Upgrading.
+
+### Added
+
+- **`through:` on a measure**, so an expression can read columns from tables the
+  fact joins to: `sum: "CASE WHEN g_match.status = 'finished' THEN 1 ELSE 0 END",
+  through: :match`. Those tables are joined into the recompute and watched by the
+  triggers, because a column they own can change what a measure computes without
+  any fact row moving.
+- **`Grain::Installer.install!` and `rake grain:triggers`**, which re-attach the
+  trigger function and every trigger. Needed after any `schema.rb` load: the
+  schema format cannot represent functions or triggers, so loading it creates the
+  tables and silently drops everything that keeps them correct. That is how test
+  databases are built and what `db:reset` does.
+- **`Grain::DrainJob`** and `config.queue`, so keeping rollups fresh is a
+  scheduled ActiveJob entry rather than a cron line invoking rake. Overlapping
+  runs are safe: claiming uses `FOR UPDATE SKIP LOCKED`.
 
 ### Fixed
 
+- **A change to a table only a measure read never reached the rollup.** The
+  trigger fired and the log took the row, but the registry did not route that
+  table to any rollup, so the worker dropped it and the aggregate drifted in
+  silence — the one failure mode Grain exists to prevent.
+- **Rollup discovery `require`d files Zeitwerk manages**, which either
+  double-defines the class or fails outright. It constantizes them now, and no
+  longer blows up when `app/rollups` does not exist.
+- **The railtie pushed `app/rollups` into `autoload_paths`** from an initializer,
+  by which point that array is frozen. Rails already autoloads and eager loads
+  everything under `app/`, so the hook was both broken and unnecessary.
 - `for(dimension: [])` raised a Postgres syntax error from `IN ()`. An empty list
   is what `current_user.churches.ids` hands over when there are none, and it now
   matches nothing instead of failing.
@@ -25,6 +63,21 @@
   bucket `NOT NULL` inside the primary key. Before this, the first fact row with
   no timestamp failed to insert — at write time, on the application's own table,
   with nothing pointing at Grain.
+- The install generator's closing instructions named the wrong generator for
+  step 3.
+
+### Upgrading from 0.0.1
+
+1. Any read without a tenant now raises. Add `for(tenant: ...)`, or
+   `across_tenants` where crossing them is the point.
+2. Rename generated join aliases in measure expressions: `j0` becomes
+   `g_<association path>`.
+3. Regenerate and run the table migration for every rollup
+   (`bin/rails generate grain:table <Rollup>`), so the triggers cover the tables
+   your measures read through.
+4. Call `Grain::Installer.install!` wherever your test suite loads the schema.
+   Without it the triggers do not exist in the test database, the rollups never
+   update, and the suite passes anyway.
 
 ## [0.0.1] - 2026-08-19
 

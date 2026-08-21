@@ -22,8 +22,9 @@ matar el proyecto), `../ideas-negocio.md`, `../ekklesia/CLAUDE.md` (integración
   Detalle en `../ekklesia/CLAUDE.md`.
 - **Hay cambios sin commitear** en grain y en golbet (DrainJob, Installer, README). Los commits
   los hace el usuario; yo redacto los mensajes y no ejecuto `git commit`.
-- Versión en `lib/grain/version.rb` = 0.0.1. Pendiente publicar 0.0.2 con los nueve arreglos que
-  salieron del dogfooding.
+- **0.0.2 lista para publicar, sin publicar.** Versión bumpeada, CHANGELOG escrito con sección de
+  Upgrading, descripción del gemspec corregida, bloque de estado del README al día, y
+  `grain-0.0.2.gem` construida. Falta `git push` y `gem push`, que los hace el usuario.
 
 ## Cómo trabajar aquí
 
@@ -132,12 +133,14 @@ throttling adaptativo por lag de replicación. Un rollup con modelo roto se salt
 
 ## Lo que sigue
 
-1. Actualizar el bloque de estado del README (ya está probada en una app real) y publicar 0.0.2.
-   Ojo: 0.0.2 ya lleva **un cambio incompatible** (el tenant obligatorio en las lecturas). Está en
-   el CHANGELOG bajo `Unreleased`. golbet no se rompe — su única lectura ya pasaba el tenant, y su
-   suite corre verde contra la gema parcheada.
-2. La descripción publicada en RubyGems dice "maintains it with deltas", que **es falso** y
-   contradice al propio README. Los metadatos no se editan; se corrige en 0.0.2.
+1. ~~Bloque de estado del README, descripción del gemspec, CHANGELOG, versión~~ — **hecho**. Falta
+   `git push`, `gem push grain-0.0.2.gem` y el tag `v0.0.2`. Ojo con el tag: **`v0.0.1` quedó en un
+   commit donde `version.rb` todavía decía 0.0.0**, así que no marca lo que se publicó. Poner
+   `v0.0.2` en el commit del bump, no antes.
+2. 0.0.2 lleva **tres cambios incompatibles**: tenant obligatorio en las lecturas, alias de joins
+   `g_<camino>` en vez de `j0`, y triggers nuevos en las tablas que leen las medidas (hay que
+   regenerar las migraciones de tabla). Están en el CHANGELOG con su sección de Upgrading. Ni
+   golbet ni ekklesia se rompen: las dos corren verdes contra 0.0.2.
 3. El artículo fundacional: *"Cómo matamos nuestras vistas materializadas"*, con los números de
    golbet. Según `../proyecto-grain.md` es todo el mercadeo del primer año.
 4. **Las 5-10 conversaciones con equipos Rails que tengan dashboards pesados.** Sigue sin hacerse,

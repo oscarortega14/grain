@@ -10,10 +10,10 @@ Gem::Specification.new do |spec|
 
   spec.summary = "Incrementally maintained pre-aggregates for Rails dashboards."
   spec.description = <<~DESC.strip
-    Grain keeps dashboard aggregates pre-computed and incrementally up to date
-    inside your own Postgres database. You declare the grain of an aggregate
-    once — tenant, time bucket and dimensions — and Grain maintains it with
-    deltas driven by database triggers instead of recomputing everything on a
+    Grain keeps dashboard aggregates pre-computed and up to date inside your own
+    Postgres database. You declare the grain of an aggregate once — tenant, time
+    bucket and dimensions — and database triggers record what changed so a worker
+    can rebuild just the affected cells, instead of recomputing everything on a
     schedule. No new infrastructure, no materialized view refresh storms, and a
     verify command that proves the aggregate still matches its source.
   DESC
